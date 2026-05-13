@@ -25,6 +25,7 @@ export async function GET() {
         primaryColor: true,
         fontFamily: true,
         footerMessage: true,
+        role: true,
       },
     });
 

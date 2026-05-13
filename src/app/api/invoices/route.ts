@@ -15,6 +15,10 @@ export async function GET(req: NextRequest) {
     const customerId = searchParams.get("customerId");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const search = searchParams.get("search");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const businessId = searchParams.get("businessId");
 
     const where: Record<string, unknown> = { userId };
 
@@ -23,6 +27,15 @@ export async function GET(req: NextRequest) {
     }
     if (customerId) {
       where.customerId = customerId;
+    }
+    if (businessId) {
+      where.businessId = businessId;
+    }
+    if (search) {
+      where.OR = [
+        { invoiceNumber: { contains: search, mode: "insensitive" } },
+        { customer: { name: { contains: search, mode: "insensitive" } } },
+      ];
     }
     if (from || to) {
       where.invoiceDate = {};
@@ -34,16 +47,26 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const invoices = await prisma.invoice.findMany({
-      where,
-      include: {
-        customer: { select: { name: true } },
-        items: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const [invoices, total] = await Promise.all([
+      prisma.invoice.findMany({
+        where,
+        include: {
+          customer: { select: { name: true } },
+          items: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.invoice.count({ where }),
+    ]);
 
-    return NextResponse.json({ invoices });
+    return NextResponse.json({
+      invoices,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
     console.error("Get invoices error:", error);
     return NextResponse.json(
@@ -108,6 +131,7 @@ export async function POST(req: NextRequest) {
         invoiceNumber,
         customerId,
         userId,
+        businessId: body.businessId || null,
         invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
         dueDate: dueDate ? new Date(dueDate) : null,
         placeOfSupply: placeOfSupply || null,
@@ -130,6 +154,7 @@ export async function POST(req: NextRequest) {
             discount?: number;
             gstRate?: number;
             total: number;
+            size?: string;
           }) => ({
             productName: item.productName,
             hsn: item.hsn || null,
@@ -138,6 +163,7 @@ export async function POST(req: NextRequest) {
             discount: parseFloat(String(item.discount)) || 0,
             gstRate: parseFloat(String(item.gstRate)) || 18,
             total: parseFloat(String(item.total)) || 0,
+            size: item.size || null,
           })),
         },
       },
@@ -146,6 +172,33 @@ export async function POST(req: NextRequest) {
         items: true,
       },
     });
+
+    // Stock deduction after bill creation
+    for (const item of items) {
+      const qty = parseFloat(String(item.quantity)) || 1;
+      if (item.productId) {
+        if (item.sizeVariantId) {
+          await prisma.sizeVariant.update({
+            where: { id: item.sizeVariantId },
+            data: { stock: { decrement: Math.floor(qty) } },
+          });
+        }
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: Math.floor(qty) } },
+        });
+      } else {
+        const product = await prisma.product.findFirst({
+          where: { name: item.productName, userId },
+        });
+        if (product) {
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { stock: { decrement: Math.floor(qty) } },
+          });
+        }
+      }
+    }
 
     return NextResponse.json({ invoice }, { status: 201 });
   } catch (error) {

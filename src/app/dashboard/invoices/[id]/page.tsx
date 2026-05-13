@@ -11,14 +11,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Download, Loader2, ArrowLeft, Printer } from "lucide-react";
+import { Download, Loader2, ArrowLeft, Printer, Eye } from "lucide-react";
 import Link from "next/link";
 import { ClassicTemplate } from "@/components/invoice/classic-template";
 import { ModernTemplate } from "@/components/invoice/modern-template";
 import { MinimalTemplate } from "@/components/invoice/minimal-template";
 import { RetailTemplate } from "@/components/invoice/retail-template";
+import { ThermalTemplate } from "@/components/invoice/thermal-template";
 import { generatePdf } from "@/components/invoice/pdf-export";
 
 interface InvoiceData {
@@ -54,6 +61,7 @@ interface InvoiceData {
     discount: number;
     gstRate: number;
     total: number;
+    size: string | null;
   }>;
   user: {
     businessName: string | null;
@@ -86,6 +94,7 @@ export default function InvoiceViewPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -109,6 +118,9 @@ export default function InvoiceViewPage() {
   useEffect(() => {
     if (invoice && searchParams.get("download") === "true") {
       handleDownload();
+    }
+    if (invoice && searchParams.get("print") === "true") {
+      setTimeout(() => window.print(), 500);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoice, searchParams]);
@@ -175,6 +187,8 @@ export default function InvoiceViewPage() {
         return <MinimalTemplate {...templateProps} />;
       case "retail":
         return <RetailTemplate {...templateProps} />;
+      case "thermal":
+        return <ThermalTemplate {...templateProps} />;
       default:
         return <ClassicTemplate {...templateProps} />;
     }
@@ -207,6 +221,7 @@ export default function InvoiceViewPage() {
               <SelectItem value="modern">Modern</SelectItem>
               <SelectItem value="minimal">Minimal</SelectItem>
               <SelectItem value="retail">Retail POS</SelectItem>
+              <SelectItem value="thermal">Thermal</SelectItem>
             </SelectContent>
           </Select>
           <Select value={invoice.status} onValueChange={handleStatusChange}>
@@ -221,6 +236,9 @@ export default function InvoiceViewPage() {
               <SelectItem value="CANCELLED">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={() => setPreviewOpen(true)} className="gap-2">
+            <Eye className="h-4 w-4" /> Preview
+          </Button>
           <Button variant="outline" onClick={handlePrint} className="gap-2">
             <Printer className="h-4 w-4" /> Print
           </Button>
@@ -241,6 +259,34 @@ export default function InvoiceViewPage() {
           {renderTemplate()}
         </div>
       </Card>
+
+      {/* Preview Modal */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bill Preview - {invoice.invoiceNumber}</DialogTitle>
+          </DialogHeader>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-white text-black">
+              {selectedTemplate === "thermal" ? (
+                <div className="flex justify-center p-4 bg-gray-50">
+                  <ThermalTemplate invoice={invoice} />
+                </div>
+              ) : (
+                renderTemplate()
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setPreviewOpen(false); handlePrint(); }}>
+              <Printer className="mr-2 h-4 w-4" /> Print
+            </Button>
+            <Button onClick={() => { setPreviewOpen(false); handleDownload(); }}>
+              <Download className="mr-2 h-4 w-4" /> Download PDF
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

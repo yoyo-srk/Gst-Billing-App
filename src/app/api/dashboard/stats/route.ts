@@ -9,18 +9,36 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [totalInvoices, invoices, customers, products] = await Promise.all([
+    const [totalInvoices, invoices, customers, products, lowStockProducts, recentInvoices] = await Promise.all([
       prisma.invoice.count({ where: { userId } }),
       prisma.invoice.findMany({
         where: { userId },
         select: {
           total: true,
+          subtotal: true,
+          cgst: true,
+          sgst: true,
+          igst: true,
           status: true,
           createdAt: true,
         },
       }),
       prisma.customer.count({ where: { userId } }),
       prisma.product.count({ where: { userId } }),
+      prisma.product.count({
+        where: {
+          userId,
+          stock: { lte: 10 },
+        },
+      }),
+      prisma.invoice.findMany({
+        where: { userId },
+        include: {
+          customer: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
     ]);
 
     const totalRevenue = invoices
@@ -30,6 +48,13 @@ export async function GET() {
     const pendingPayments = invoices
       .filter((i) => i.status === "PENDING" || i.status === "OVERDUE")
       .reduce((sum, i) => sum + i.total, 0);
+
+    const totalAmount = invoices.reduce((sum, i) => sum + i.total, 0);
+
+    const totalGST = invoices.reduce(
+      (sum, i) => sum + i.cgst + i.sgst + i.igst,
+      0
+    );
 
     // Monthly sales data for chart (last 6 months)
     const now = new Date();
@@ -59,6 +84,10 @@ export async function GET() {
       pendingPayments: Math.round(pendingPayments * 100) / 100,
       totalCustomers: customers,
       totalProducts: products,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+      totalGST: Math.round(totalGST * 100) / 100,
+      lowStockProducts,
+      recentInvoices,
       monthlyData,
     });
   } catch (error) {

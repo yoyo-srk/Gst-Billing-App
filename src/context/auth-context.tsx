@@ -17,6 +17,7 @@ interface User {
   primaryColor: string | null;
   fontFamily: string | null;
   footerMessage: string | null;
+  role: "ADMIN" | "USER";
 }
 
 interface AuthContextType {

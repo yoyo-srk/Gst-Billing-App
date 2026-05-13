@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/auth-context";
 import {
   LayoutDashboard,
   FilePlus,
@@ -12,6 +13,8 @@ import {
   Package,
   Settings,
   X,
+  Building2,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -21,7 +24,12 @@ const navigation = [
   { name: "Invoices", href: "/dashboard/invoices", icon: FileText },
   { name: "Customers", href: "/dashboard/customers", icon: Users },
   { name: "Products", href: "/dashboard/products", icon: Package },
+  { name: "Businesses", href: "/dashboard/businesses", icon: Building2 },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
+];
+
+const adminNavigation = [
+  { name: "Admin Panel", href: "/dashboard/admin", icon: Shield },
 ];
 
 interface SidebarProps {
@@ -31,6 +39,12 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
+
+  const allNavigation = isAdmin
+    ? [...navigation, ...adminNavigation]
+    : navigation;
 
   return (
     <>
@@ -69,7 +83,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navigation.map((item) => {
+          {allNavigation.map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -95,7 +109,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Footer */}
         <div className="border-t p-4">
           <p className="text-xs text-muted-foreground text-center">
-            GST Billing v1.0
+            GST Billing v3.0
           </p>
         </div>
       </aside>

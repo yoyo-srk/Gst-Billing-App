@@ -23,7 +23,11 @@ export async function PUT(
       );
     }
 
-    const { name, hsn, price, gstRate } = await req.json();
+    const { name, hsn, price, gstRate, category, stock, lowStockAlert, sizeVariants } = await req.json();
+
+    if (sizeVariants) {
+      await prisma.sizeVariant.deleteMany({ where: { productId: params.id } });
+    }
 
     const product = await prisma.product.update({
       where: { id: params.id },
@@ -32,7 +36,20 @@ export async function PUT(
         hsn: hsn !== undefined ? hsn : existing.hsn,
         price: price !== undefined ? parseFloat(price) : existing.price,
         gstRate: gstRate !== undefined ? parseFloat(gstRate) : existing.gstRate,
+        category: category !== undefined ? category : existing.category,
+        stock: stock !== undefined ? parseInt(stock) : existing.stock,
+        lowStockAlert: lowStockAlert !== undefined ? parseInt(lowStockAlert) : existing.lowStockAlert,
+        sizeVariants: sizeVariants?.length
+          ? {
+              create: sizeVariants.map((sv: { size: string; stock: number; price?: number }) => ({
+                size: sv.size,
+                stock: sv.stock || 0,
+                price: sv.price ? parseFloat(String(sv.price)) : null,
+              })),
+            }
+          : undefined,
       },
+      include: { sizeVariants: true },
     });
 
     return NextResponse.json({ product });

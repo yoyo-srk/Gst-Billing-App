@@ -22,6 +22,7 @@ model User {
   primaryColor String?    @default("#0f172a")
   fontFamily   String?    @default("Inter")
   footerMessage String?
+  role         UserRole   @default(USER)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -29,6 +30,23 @@ model User {
   products     Product[]
   invoices     Invoice[]
   settings     Settings?
+  businesses   Business[]
+}
+
+model Business {
+  id        String   @id @default(cuid())
+  name      String
+  gstin     String?
+  address   String?
+  phone     String?
+  state     String?
+  logo      String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices  Invoice[]
+  products  Product[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Settings {
@@ -43,6 +61,7 @@ model Settings {
   defaultTemplate String @default("classic")
   invoicePrefix   String @default("INV")
   nextInvoiceNum  Int    @default(1)
+  lowStockThreshold Int  @default(10)
 }
 
 model Customer {
@@ -61,13 +80,30 @@ model Customer {
 }
 
 model Product {
+  id           String         @id @default(cuid())
+  name         String
+  hsn          String?
+  price        Float
+  gstRate      Float          @default(18)
+  category     String?
+  stock        Int            @default(0)
+  lowStockAlert Int           @default(10)
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId   String?
+  business     Business?      @relation(fields: [businessId], references: [id])
+  sizeVariants SizeVariant[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model SizeVariant {
   id        String   @id @default(cuid())
-  name      String
-  hsn       String?
-  price     Float
-  gstRate   Float    @default(18)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  size      String
+  stock     Int      @default(0)
+  price     Float?
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -79,6 +115,8 @@ model Invoice {
   customer      Customer      @relation(fields: [customerId], references: [id])
   userId        String
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId    String?
+  business      Business?     @relation(fields: [businessId], references: [id])
   invoiceDate   DateTime      @default(now())
   dueDate       DateTime?
   placeOfSupply String?
@@ -108,6 +146,7 @@ model InvoiceItem {
   discount    Float   @default(0)
   gstRate     Float   @default(18)
   total       Float
+  size        String?
 }
 
 enum InvoiceStatus {
@@ -116,4 +155,9 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+}
+
+enum UserRole {
+  ADMIN
+  USER
 }
